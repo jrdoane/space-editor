@@ -6,6 +6,7 @@
     [clojure.data.zip.xml :as zx]
     [hiccup.core :as hic]
     [hiccup.page]
+    [se-xml]
     ))
 
 (def base-faction-tag :Factions)
@@ -241,7 +242,17 @@
     (map :tag
          (:content
            (zip/node
-             (zx/xml1-> zipper :Factions :Requests)))))
+             (zx/xml1-> zipper :Factions :Factions :MyObjectBuilder_Faction)))))
+
+  (spit "/tmp/test.xml" (se-xml/write-xml zipper))
+
+  (spit "/tmp/kasjdklasd" (pr-str (map
+    (fn [i]
+      (first (:content
+        (zip/node
+          (zx/xml1-> i :Name)))))
+    (zx/xml-> zipper :Factions :Factions :MyObjectBuilder_Faction))))
+
   (session-name zipper)
 
   (take 4 (clean-factions zipper))
