@@ -5,7 +5,6 @@
 (def xml-header "<?xml version=\"1.0\"?>")
 (def nl "\n")
 (def indent "  ")
-(def space " ")
 
 (defn encap
   [st n]
@@ -17,14 +16,14 @@
 
 (defn write-attribute
   [k v]
-  (str k "=" (html-quote (hiccup.util/escape-html v))))
+  (str (name k) "=" (html-quote (hiccup.util/escape-html v))))
 
 (defn write-attributes
   [attr-map]
   (apply
     str
     (interpose
-      space
+      " "
       (map
         (fn [[k v]] (write-attribute k v))
         attr-map))))
@@ -32,24 +31,27 @@
 (defn write-content
   [n]
   (when (not (nil? n))
-    (hiccup.util/escape-html n)))
+    (when (not (empty? n))
+      (hiccup.util/escape-html (apply str n)))))
 
 (defn wrap-up-tag
   [singleton?]
-  (if singleton?
-    " />" ">"))
+  (str
+    (if singleton?
+      " />" ">")
+    "\n"))
 
 (defn write-tag-start
   [tag-name attributes content]
-  (str "<" tag-name
+  (str "<" (name tag-name)
        (when (not (empty? attributes))
-         (str " " (write-attributes attributes)
-              (wrap-up-tag (nil? content))))))
+         (str " " (write-attributes attributes)))
+       (wrap-up-tag (nil? content))))
 
 (defn write-tag-close
   [tag-name content]
   (when content
-    (str "</" tag-name ">")))
+    (str "</" (name tag-name) (wrap-up-tag false))))
 
 (defn write-tag
   ([tag attributes]
@@ -62,39 +64,50 @@
 
 (defn write-xml
   [xml-zipper]
-  (reduce
+  (apply
     str
     (loop [seq-of-str []
            loc xml-zipper
            depth 0
            entry? true]
-      (let [node (zip/node loc)
-            tag (:tag node)
-            attrs (:attrs node)
-            content (:content node)
-            singleton? (nil? (zip/down loc))]
-        (println tag entry? singleton?)
+      (let [can-right? (not (nil? (zip/right loc)))
+            can-up? (not (nil? (zip/up loc)))]
         (if (and
               (not entry?)
-              (nil? (zip/up loc))
-              (nil? (zip/right loc)))
+              (not can-right?)
+              (not can-up?))
           seq-of-str
-          (recur
-            (conj
-              seq-of-str
-              (if entry?
-                (if singleton?
-                  (write-tag tag attrs content)
-                  (write-tag-start tag attrs ""))
-                (write-tag-close tag content)))
-            (if (not singleton?)
-              (zip/down loc)
-              (if-let [r (zip/right loc)]
-                r
-                (zip/up loc)))
-            (if singleton?
-              (if (nil? (zip/right loc))
-                (dec depth) depth) (inc depth))
-            (or (zip/right loc) (not singleton?))))))
-    ""))
+          (let [singleton? (nil? (zip/down loc)) 
+                can-down? (and entry? (not singleton?))
+                direction (if can-down?
+                            :down
+                            (if can-right?
+                              :right
+                              :up))
+                new-entry? (not (= direction :up))
+                node (zip/node loc)
+                tag (:tag node)
+                attrs (:attrs node)
+                content (:content node)]
+            (recur
+              (conj
+                seq-of-str
+                (if entry?
+                  (if singleton?
+                    (if (nil? tag)
+                      (hiccup.util/escape-html (str content))   
+                      (write-tag tag attrs content))
+                    (write-tag-start tag attrs true))
+                  (write-tag-close tag content)))
+              (if can-down?
+                (zip/down loc)
+                (if can-right?
+                  (zip/right loc)
+                  (zip/up loc)))
+              (if can-down?
+                (inc depth)
+                (if can-right?
+                  depth
+                  (dec depth)))
+              new-entry?)))))))
 

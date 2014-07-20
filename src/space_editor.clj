@@ -206,7 +206,7 @@
 
 (defn string->xml
   [s]
-  (dx/parse-str s))
+  (xml/parse (java.io.ByteArrayInputStream. (.getBytes s))))
 
 (defn clean-factions
   [zipper]
@@ -231,26 +231,27 @@
            xml-struct))))
 
 (comment
-  (def test-xml
-    (string->xml
-      (slurp "example-world/Sandbox.sbc")))
-  (def zipper (zip/xml-zip test-xml))
+  (do
+    (def test-xml
+      (string->xml
+        (slurp "example-world/Sandbox.sbc")))
+    (def zipper (zip/xml-zip test-xml))
+    (spit "/tmp/test.xml" (se-xml/write-xml zipper)))
+
   (navigate-to zipper faction-list)
   (map :tag (:content test-xml))
   (:tag (zip/node (zip/down (navigate-to zipper faction-list))))
-  (set
-    (map :tag
-         (:content
-           (zip/node
-             (zx/xml1-> zipper :Factions :Factions :MyObjectBuilder_Faction)))))
+  
+  (:content
+    (zip/node
+      (zx/xml1-> zipper :Factions :Factions :MyObjectBuilder_Faction :Members :MyObjectBuilder_FactionMember :IsLeader)))
 
-  (spit "/tmp/test.xml" (se-xml/write-xml zipper))
 
   (spit "/tmp/kasjdklasd" (pr-str (map
-    (fn [i]
-      (first (:content
-        (zip/node
-          (zx/xml1-> i :Name)))))
+                                    (fn [i]
+                                      (first (:content
+                                               (zip/node
+                                                 (zx/xml1-> i :Name)))))
     (zx/xml-> zipper :Factions :Factions :MyObjectBuilder_Faction))))
 
   (session-name zipper)
